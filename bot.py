@@ -11,10 +11,14 @@ from database import (
     BASE_DIR,
     BOT_TOKEN,
     PORT,
+    add_custom_car,
+    delete_custom_car,
     get_all_telegram_chat_ids,
+    get_custom_cars,
     init_db,
     save_car_order,
     save_otp_code,
+    save_registered_site_user,
     save_telegram_user,
     verify_otp_code,
     verify_session_token,
@@ -185,6 +189,10 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        if clean_path == "/api/cars":
+            self.send_json({"ok": True, "cars": get_custom_cars()})
+            return
+
         # XAVFSIZLIK: .env, .py, .json kabi maxfiy fayllarni brauzerdan o'qishni qat'iyan taqiqlaymiz!
         if clean_path not in ALLOWED_PUBLIC_FILES:
             self.send_json({"ok": False, "message": "Ruxsat yo'q (403 Forbidden)"}, 403)
@@ -200,11 +208,10 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             body = {}
 
-        # 1. Ro'yxatdan o'tish uchun kod yuborish
-        if self.path == "/api/send-code":
+        # 0. To'g'ridan-to'g'ri ro'yxatdan o'tish (Ism va Telefon raqam orqali, kodsiz)
+        if self.path == "/api/register":
             name = body.get("name", "").strip()
             phone = body.get("phone", "").strip()
-            telegram_id = body.get("telegram_id", "").strip()
 
             if not name or not phone:
                 self.send_json(
@@ -213,7 +220,44 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
-            code = str(random.randint(100000, 999999))
+            import secrets
+            session_token = secrets.token_hex(32)
+            save_registered_site_user(name=name, phone=phone, telegram_id="", session_token=session_token)
+
+            threading.Thread(
+                target=send_notification_to_telegram,
+                args=(
+                    f"✅ <b>Saytdan yangi odam ro'yxatdan o'tdi!</b>\n\n"
+                    f"👤 <b>Ism:</b> {name}\n"
+                    f"📞 <b>Telefon:</b> {phone}",
+                ),
+                daemon=True,
+            ).start()
+
+            self.send_json(
+                {
+                    "ok": True,
+                    "message": "Muvaffaqiyatli ro'yxatdan o'tdingiz!",
+                    "user": {"name": name, "phone": phone, "session_token": session_token},
+                }
+            )
+            return
+
+        # 1. Ro'yxatdan o'tish uchun kod yuborish
+        if self.path == "/api/send-code":
+            name = body.get("name", "").strip()
+            phone = body.get("phone", "").strip()
+            telegram_id = body.get("telegram_id", "").strip()
+            req_code = str(body.get("code", "")).strip()
+
+            if not name or not phone:
+                self.send_json(
+                    {"ok": False, "message": "Iltimos, ismingiz va telefon raqamingizni kiriting!"},
+                    400,
+                )
+                return
+
+            code = req_code if (len(req_code) == 6 and req_code.isdigit()) else str(random.randint(100000, 999999))
             save_otp_code(phone=phone, name=name, code=code, telegram_id=telegram_id, ttl_seconds=300)
 
             sent_count = send_otp_to_telegram(name, phone, code, telegram_id)
@@ -249,13 +293,17 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
                 self.send_json({"ok": False, "message": message}, 400)
                 return
 
-            send_notification_to_telegram(
-                f"✅ <b>Yangi foydalanuvchi ro'yxatdan o'tdi (Neon DB)!</b>\n\n"
-                f"👤 <b>Ism:</b> {user_info['name']}\n"
-                f"📞 <b>Telefon:</b> {user_info['phone']}\n"
-                f"🎉 Saytga muvaffaqiyatli kirdi!",
-                user_info["telegram_id"],
-            )
+            threading.Thread(
+                target=send_notification_to_telegram,
+                args=(
+                    f"✅ <b>Yangi foydalanuvchi ro'yxatdan o'tdi (Neon DB)!</b>\n\n"
+                    f"👤 <b>Ism:</b> {user_info['name']}\n"
+                    f"📞 <b>Telefon:</b> {user_info['phone']}\n"
+                    f"🎉 Saytga muvaffaqiyatli kirdi!",
+                    user_info["telegram_id"],
+                ),
+                daemon=True,
+            ).start()
 
             self.send_json(
                 {
@@ -301,25 +349,36 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
             self.send_json({"ok": True, "message": "Arizangiz Neon bazasiga saqlandi va Telegram botga yuborildi!"})
             return
 
+        # 5. Admin: Yangi mashina qo'shish
+        if self.path == "/api/cars/add":
+            new_car = add_custom_car(body)
+            threading.Thread(
+                target=send_notification_to_telegram,
+                args=(
+                    f"🚗 <b>ADMIN YANGI MASHINA QO'SHDI!</b>\n\n"
+                    f"🚘 <b>Model:</b> {new_car['name']}\n"
+                    f"💰 <b>Narxi:</b> {new_car['price']}\n"
+                    f"📅 <b>Yili:</b> {new_car['year']} | {new_car['fuel']}",
+                ),
+                daemon=True,
+            ).start()
+            self.send_json({"ok": True, "car": new_car})
+            return
+
+        # 6. Admin: Mashinani o'chirish
+        if self.path == "/api/cars/delete":
+            car_id = body.get("id")
+            if car_id is not None:
+                delete_custom_car(car_id)
+            self.send_json({"ok": True})
+            return
+
         self.send_json({"ok": False, "message": "Topilmadi"}, 404)
 
 
-def run_web_server():
-    port = int(os.environ.get("PORT", PORT))
-    server = ThreadingHTTPServer(("0.0.0.0", port), MashinaRequestHandler)
-    print(f"🌐 Backend va Sayt 0.0.0.0:{port} portda ishga tushdi!", flush=True)
-    server.serve_forever()
-
-
-if __name__ == "__main__":
-    # 1. Eng avval Web-serverni (0.0.0.0:$PORT) darhol ishga tushiramiz (Render portni tez ko'rishi uchun)
-    server_thread = threading.Thread(target=run_web_server, daemon=True)
-    server_thread.start()
-
-    # 2. Keyin Neon PostgreSQL bazasini tekshiramiz
-    print("🔄 Neon PostgreSQL bazasi tekshirilmoqda...", flush=True)
-    init_db()
-
+def run_bot_polling():
+    """Telegram bot pollingni alohida oqimda xavfsiz ishlatish (Web-server hech qachon o'chib qolmasligi uchun)"""
+    import time
     try:
         bot.remove_webhook()
     except Exception:
@@ -333,5 +392,24 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"⚠️ Bot ma'lumotlarini olishda xatolik: {e}", flush=True)
 
-    print("🚀 Bot va Backend xavfsiz rejimda ishlamoqda...", flush=True)
-    bot.infinity_polling(skip_pending=True)
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=10)
+        except Exception as e:
+            print(f"⚠️ Polling xatosi: {e}", flush=True)
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+    print("🔄 Neon PostgreSQL bazasi tekshirilmoqda...", flush=True)
+    threading.Thread(target=init_db, daemon=True).start()
+
+    # Telegram botni background oqimda ishga tushiramiz
+    bot_thread = threading.Thread(target=run_bot_polling, daemon=True)
+    bot_thread.start()
+
+    # Asosiy oqimda Web-serverni (0.0.0.0:$PORT) ishlatamiz — Render hech qachon to'xtab qolmaydi!
+    port = int(os.environ.get("PORT", 10000 if os.environ.get("RENDER") else PORT))
+    server = ThreadingHTTPServer(("0.0.0.0", port), MashinaRequestHandler)
+    print(f"🌐 Backend va Sayt 0.0.0.0:{port} (http://127.0.0.1:{port}) portda ishga tushdi!", flush=True)
+    server.serve_forever()

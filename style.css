@@ -178,6 +178,27 @@ body {
     border-color: #ef4444;
 }
 
+.btn-admin {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
+
+.btn-admin:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+}
+
+.admin-role-tag {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    margin-left: 6px;
+}
+
 .btn-link {
     background: transparent;
     color: var(--text-muted);
@@ -654,7 +675,8 @@ body {
     font-size: 0.8rem;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     width: 100%;
     background: rgba(11, 15, 25, 0.7);
     border: 1px solid var(--border-color);
@@ -665,8 +687,58 @@ body {
     outline: none;
 }
 
-.form-group input:focus {
+.form-group select option {
+    background: #131b2e;
+    color: #fff;
+}
+
+.form-group input:focus,
+.form-group select:focus {
     border-color: var(--primary);
+}
+
+/* ADMIN MODAL */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 15, 0.82);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.modal-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 20px;
+    max-width: 460px;
+    width: 100%;
+    padding: 32px;
+    position: relative;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+    animation: modalPop 0.25s ease-out;
+}
+
+.admin-modal-card {
+    max-width: 620px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+.admin-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+@media (max-width: 600px) {
+    .admin-form-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .otp-inputs {

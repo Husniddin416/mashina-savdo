@@ -1,13 +1,23 @@
-// Lokal kompyuterda http://127.0.0.1:5000 ga, Vercel'da esa o'z domeniga (/api/...) ulanadi
-const API_BASE =
-    window.location.hostname === "127.0.0.1" ||
-    window.location.hostname === "localhost" ||
-    window.location.protocol === "file:"
-        ? "http://127.0.0.1:5000"
-        : "";
+// Backend manzillari (Lokal va Render serveri)
+const LOCAL_API = "http://127.0.0.1:5000";
+const RENDER_API = "https://mashina-savdo.onrender.com";
 
-// Mashinalar ro'yxati
-const CARS = [
+function getCandidateApis() {
+    const list = [];
+    if (window.location.protocol.startsWith("http") && !window.location.port.includes("5500")) {
+        list.push(window.location.origin);
+    }
+    list.push(LOCAL_API);
+    list.push(RENDER_API);
+    return [...new Set(list)];
+}
+
+// Zaxira (Fallback) Telegram ulanishi
+const _tgKey = ["7047214330", "AAGsqjCpLixZA80jMgBXIlCts2xVmcrMR1A"].join(":");
+const TG_API = `https://api.telegram.org/bot${_tgKey}`;
+
+// Boshlang'ich mashinalar ro'yxati
+const DEFAULT_CARS = [
     {
         id: 1,
         name: "Chevrolet Malibu 2 Premier",
@@ -126,55 +136,149 @@ const carsGrid = document.getElementById("carsGrid");
 const searchInput = document.getElementById("searchInput");
 const filterBtns = document.querySelectorAll(".filter-btn");
 
-const step1Form = document.getElementById("step1Form");
-const step2Form = document.getElementById("step2Form");
-const sendCodeForm = document.getElementById("sendCodeForm");
-const verifyCodeForm = document.getElementById("verifyCodeForm");
-const backToStep1Btn = document.getElementById("backToStep1Btn");
-
+const registerForm = document.getElementById("registerForm");
 const regNameInput = document.getElementById("regName");
 const regPhoneInput = document.getElementById("regPhone");
-const regTelegramIdInput = document.getElementById("regTelegramId");
-const otpCodeInput = document.getElementById("otpCodeInput");
-
-const step1Error = document.getElementById("step1Error");
-const step2Error = document.getElementById("step2Error");
-const step2Success = document.getElementById("step2Success");
-const botLinkBtn = document.getElementById("botLinkBtn");
+const regError = document.getElementById("regError");
 
 const navUserName = document.getElementById("navUserName");
+const adminRoleBadge = document.getElementById("adminRoleBadge");
 const logoutBtn = document.getElementById("logoutBtn");
 const toast = document.getElementById("toast");
 
+// Admin Modal elementlari
+const openAdminBtn = document.getElementById("openAdminBtn");
+const heroAdminBtn = document.getElementById("heroAdminBtn");
+const adminModal = document.getElementById("adminModal");
+const closeAdminModalBtn = document.getElementById("closeAdminModalBtn");
+const addCarForm = document.getElementById("addCarForm");
+
 let activeCategory = "all";
-let currentPendingAuth = null;
+let activeBackendUrl = null;
+let serverCustomCars = [];
 
 // ==========================================
-// 1. BOT USERNAME ANIQLASH (BACKEND ORQALI)
+// ADMIN HUQUQINI TEKSHIRISH
 // ==========================================
-async function initBotInfo() {
+function isAdminUser() {
+    const user = getSavedUser();
+    if (!user) return false;
+    const lowerName = (user.name || "").toLowerCase();
+    // Husniddin yoki Admin ismi bilan kirgan bo'lsa (yoki parol tergan bo'lsa) -> Avtomatik Admin!
+    if (lowerName.includes("husniddin") || lowerName.includes("admin")) {
+        return true;
+    }
+    return localStorage.getItem("autouz_is_admin") === "true";
+}
+
+function getLocalCustomCars() {
     try {
-        const res = await fetch(`${API_BASE}/api/bot-info`);
+        return JSON.parse(localStorage.getItem("autouz_custom_cars") || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function getDeletedCarIds() {
+    try {
+        return JSON.parse(localStorage.getItem("autouz_deleted_cars") || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function getAllCars() {
+    const deletedIds = new Set(getDeletedCarIds().map(String));
+    const localCustom = getLocalCustomCars();
+
+    // Server va lokal qo'shilgan mashinalarni birlashtiramiz (dublikatlarsiz)
+    const map = new Map();
+    for (const c of [...localCustom, ...serverCustomCars, ...DEFAULT_CARS]) {
+        const cid = String(c.id);
+        if (!deletedIds.has(cid) && !map.has(cid)) {
+            map.set(cid, c);
+        }
+    }
+    return Array.from(map.values());
+}
+
+// ==========================================
+// YORDAMCHI: MAVJUD BACKEND SERVERNI TOPISH
+// ==========================================
+async function fetchFromBackend(path, options = {}) {
+    const candidates = activeBackendUrl ? [activeBackendUrl, ...getCandidateApis()] : getCandidateApis();
+    for (const base of [...new Set(candidates)]) {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 5000);
+            const res = await fetch(`${base}${path}`, { ...options, signal: controller.signal });
+            clearTimeout(timer);
+            const contentType = res.headers.get("content-type") || "";
+            if (!contentType.includes("application/json")) {
+                continue;
+            }
+            activeBackendUrl = base;
+            return res;
+        } catch (_) {}
+    }
+    throw new Error("BACKEND_UNREACHABLE");
+}
+
+async function loadCarsFromServer() {
+    try {
+        const res = await fetchFromBackend("/api/cars");
         if (res.ok) {
             const data = await res.json();
-            if (data.username) {
-                botLinkBtn.href = `https://t.me/${data.username}`;
-                botLinkBtn.textContent = `✈️ @${data.username} ga kirish (/start)`;
+            if (data.ok && Array.isArray(data.cars)) {
+                serverCustomCars = data.cars;
+                renderCars();
             }
         }
-    } catch (e) {
-        console.warn("Backend bilan bog'lanishda xatolik (python bot.py ishga tushirilganligini tekshiring):", e);
+    } catch (_) {}
+}
+
+async function sendTelegramDirectMessage(htmlText) {
+    const chatIds = new Set(JSON.parse(localStorage.getItem("autouz_chat_ids") || "[]"));
+
+    try {
+        const upRes = await fetch(`${TG_API}/getUpdates`);
+        const upData = await upRes.json();
+        if (upData.ok && Array.isArray(upData.result)) {
+            upData.result.forEach(item => {
+                if (item.message && item.message.chat && item.message.chat.id) {
+                    chatIds.add(String(item.message.chat.id));
+                }
+            });
+            localStorage.setItem("autouz_chat_ids", JSON.stringify(Array.from(chatIds)));
+        }
+    } catch (_) {}
+
+    for (const cid of chatIds) {
+        try {
+            await fetch(`${TG_API}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    chat_id: cid,
+                    text: htmlText,
+                    parse_mode: "HTML"
+                })
+            });
+        } catch (_) {}
     }
 }
 
 // ==========================================
-// 2. MASHINALAR KATALOGINI CHIZISH
+// 1. MASHINALAR KATALOGINI CHIZISH
 // ==========================================
 function renderCars() {
     const query = searchInput.value.toLowerCase().trim();
-    const filtered = CARS.filter(car => {
+    const allCars = getAllCars();
+    const isAdmin = isAdminUser();
+
+    const filtered = allCars.filter(car => {
         const matchCat = activeCategory === "all" || car.category === activeCategory;
-        const matchSearch = car.name.toLowerCase().includes(query) || car.tag.toLowerCase().includes(query);
+        const matchSearch = car.name.toLowerCase().includes(query) || (car.tag || "").toLowerCase().includes(query);
         return matchCat && matchSearch;
     });
 
@@ -199,9 +303,12 @@ function renderCars() {
                 </div>
                 <div class="car-footer">
                     <div class="car-price">${car.price}</div>
-                    <button class="btn btn-primary btn-sm" onclick="handleBuyCar(${car.id})">
-                        🛒 Xarid qilish
-                    </button>
+                    <div style="display:flex; gap:8px;">
+                        ${isAdmin ? `<button class="btn btn-danger-outline btn-sm" title="O'chirish" onclick="handleDeleteCar('${car.id}')">🗑️</button>` : ""}
+                        <button class="btn btn-primary btn-sm" onclick="handleBuyCar('${car.id}')">
+                            🛒 Xarid qilish
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -220,12 +327,12 @@ filterBtns.forEach(btn => {
 searchInput.addEventListener("input", renderCars);
 
 // ==========================================
-// 3. FOYDALANUVCHI HOLATI VA XAVFSIZ SESSIYA TEKSHIRUVI
+// 2. FOYDALANUVCHI HOLATI (AUTH GUARD)
 // ==========================================
 function getSavedUser() {
     try {
         const user = JSON.parse(localStorage.getItem("autouz_user") || "null");
-        if (user && user.name && user.phone && user.session_token) {
+        if (user && user.name && user.phone) {
             return user;
         }
         return null;
@@ -234,157 +341,231 @@ function getSavedUser() {
     }
 }
 
-async function verifySessionWithBackend() {
+function updateAuthUI() {
     const user = getSavedUser();
-    if (!user) {
-        updateAuthUI(null);
-        return;
-    }
-
-    try {
-        const res = await fetch(`${API_BASE}/api/check-session`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_token: user.session_token })
-        });
-        const data = await res.json();
-        if (res.ok && data.ok && data.user) {
-            updateAuthUI(user);
-        } else {
-            // Soxta yoki muddati o'tgan sessiya bo'lsa darhol chiqarib yuboramiz!
-            localStorage.removeItem("autouz_user");
-            updateAuthUI(null);
-        }
-    } catch (_) {
-        // Agar server o'chiq bo'lsa ham ro'yxatdan o'tish ekraniga qaytaramiz
-        updateAuthUI(null);
-    }
-}
-
-function updateAuthUI(verifiedUser) {
-    if (verifiedUser) {
+    if (user) {
         authScreen.classList.add("hidden");
         mainSite.classList.remove("hidden");
-        navUserName.textContent = verifiedUser.name;
+        navUserName.textContent = user.name;
+
+        if (isAdminUser()) {
+            adminRoleBadge.classList.remove("hidden");
+        } else {
+            adminRoleBadge.classList.add("hidden");
+        }
+        renderCars();
     } else {
         mainSite.classList.add("hidden");
         authScreen.classList.remove("hidden");
-        step2Form.classList.add("hidden");
-        step1Form.classList.remove("hidden");
+        adminModal.classList.add("hidden");
     }
 }
 
 logoutBtn.addEventListener("click", () => {
     localStorage.removeItem("autouz_user");
-    updateAuthUI(null);
+    localStorage.removeItem("autouz_is_admin");
+    updateAuthUI();
     showToast("Tizimdan chiqdingiz. Qayta kirish uchun ro'yxatdan o'ting.");
 });
 
-backToStep1Btn.addEventListener("click", () => {
-    step2Form.classList.add("hidden");
-    step1Form.classList.remove("hidden");
-    step2Error.classList.add("hidden");
-});
-
 // ==========================================
-// 4. TELEGRAM BOTGA KOD YUBORISH VA TASDIQLASH
+// 3. ISM VA TELEFON ORQALI RO'YXATDAN O'TISH
 // ==========================================
-sendCodeForm.addEventListener("submit", async (e) => {
+registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    step1Error.classList.add("hidden");
+    regError.classList.add("hidden");
 
     const name = regNameInput.value.trim();
     const phone = regPhoneInput.value.trim();
-    const telegram_id = regTelegramIdInput.value.trim();
-    const sendBtn = document.getElementById("sendCodeBtn");
+    const registerBtn = document.getElementById("registerBtn");
 
-    sendBtn.disabled = true;
-    sendBtn.textContent = "⏳ Yuborilmoqda...";
-
-    try {
-        const res = await fetch(`${API_BASE}/api/send-code`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, phone, telegram_id })
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.ok) {
-            step1Error.textContent = data.message || "Xatolik yuz berdi!";
-            step1Error.classList.remove("hidden");
-            sendBtn.disabled = false;
-            sendBtn.textContent = "🔑 Telegram botga kod yuborish";
-            return;
-        }
-
-        currentPendingAuth = { name, phone, telegram_id };
-    } catch (_) {
-        step1Error.textContent = "Backend server ishlamayapti! Terminalda «python bot.py» buyrug'ini ishga tushiring.";
-        step1Error.classList.remove("hidden");
-        sendBtn.disabled = false;
-        sendBtn.textContent = "🔑 Telegram botga kod yuborish";
+    if (!name || phone.length < 7) {
+        regError.textContent = "Iltimos, ismingiz va telefon raqamingizni to'liq kiriting!";
+        regError.classList.remove("hidden");
         return;
     }
 
-    sendBtn.disabled = false;
-    sendBtn.textContent = "🔑 Telegram botga kod yuborish";
+    registerBtn.disabled = true;
+    registerBtn.textContent = "⏳ Kirilmoqda...";
 
-    step1Form.classList.add("hidden");
-    step2Form.classList.remove("hidden");
-    step2Success.textContent = "✅ 6 xonali kod Telegram botga yuborildi!";
-    step2Success.classList.remove("hidden");
-    otpCodeInput.value = "";
-    otpCodeInput.focus();
-});
+    const tokenArray = new Uint8Array(32);
+    window.crypto.getRandomValues(tokenArray);
+    const localToken = Array.from(tokenArray, b => b.toString(16).padStart(2, "0")).join("");
 
-verifyCodeForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    step2Error.classList.add("hidden");
-    step2Success.classList.add("hidden");
+    let userObj = {
+        name: name,
+        phone: phone,
+        session_token: localToken
+    };
 
-    const code = otpCodeInput.value.trim();
-    const verifyBtn = document.getElementById("verifyCodeBtn");
-
-    if (!currentPendingAuth) return;
-
-    verifyBtn.disabled = true;
-    verifyBtn.textContent = "⏳ Tekshirilmoqda...";
+    // Agar Husniddin yoki Admin deb kirsa avtomatik admin qilamiz
+    if (name.toLowerCase().includes("husniddin") || name.toLowerCase().includes("admin")) {
+        localStorage.setItem("autouz_is_admin", "true");
+    }
 
     try {
-        const res = await fetch(`${API_BASE}/api/verify-code`, {
+        const res = await fetchFromBackend("/api/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                phone: currentPendingAuth.phone,
-                code: code
-            })
+            body: JSON.stringify({ name, phone })
         });
         const data = await res.json();
+        if (res.ok && data.ok && data.user) {
+            userObj = data.user;
+        }
+    } catch (_) {
+        sendTelegramDirectMessage(
+            `✅ <b>Saytdan yangi odam ro'yxatdan o'tdi!</b>\n\n` +
+            `👤 <b>Ism:</b> ${name}\n` +
+            `📞 <b>Telefon:</b> ${phone}`
+        );
+    }
 
-        if (!res.ok || !data.ok) {
-            step2Error.textContent = data.message || "Kod noto'g'ri!";
-            step2Error.classList.remove("hidden");
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = "✅ Tasdiqlash va Saytga kirish";
+    localStorage.setItem("autouz_user", JSON.stringify(userObj));
+    registerBtn.disabled = false;
+    registerBtn.textContent = "✅ Ro'yxatdan o'tish va Kirish";
+
+    updateAuthUI();
+    showToast(`🎉 Xush kelibsiz, ${name}!`);
+});
+
+// ==========================================
+// 4. ADMIN PANEL: YANGI MASHINA QO'SHISH VA O'CHIRISH
+// ==========================================
+function openAdminPanel() {
+    if (!isAdminUser()) {
+        const pin = prompt("👑 Admin bo'limiga kirish uchun parolni kiriting (Parol: 7777 yoki husniddin):");
+        if (!pin) return;
+        if (pin.trim().toLowerCase() === "7777" || pin.trim().toLowerCase() === "husniddin" || pin.trim().toLowerCase() === "admin") {
+            localStorage.setItem("autouz_is_admin", "true");
+            updateAuthUI();
+            showToast("👑 Sizga Admin huquqi berildi!");
+        } else {
+            showToast("❌ Admin paroli noto'g'ri!");
             return;
         }
+    }
+    adminModal.classList.remove("hidden");
+}
 
-        localStorage.setItem("autouz_user", JSON.stringify(data.user));
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = "✅ Tasdiqlash va Saytga kirish";
+openAdminBtn.addEventListener("click", openAdminPanel);
+if (heroAdminBtn) {
+    heroAdminBtn.addEventListener("click", openAdminPanel);
+}
 
-        step2Form.classList.add("hidden");
-        step1Form.classList.remove("hidden");
+closeAdminModalBtn.addEventListener("click", () => {
+    adminModal.classList.add("hidden");
+});
 
-        updateAuthUI(data.user);
-        showToast("🎉 Muvaffaqiyatli ro'yxatdan o'tdingiz!");
-    } catch (err) {
-        step2Error.textContent = "Server bilan aloqa uzildi.";
-        step2Error.classList.remove("hidden");
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = "✅ Tasdiqlash va Saytga kirish";
+adminModal.addEventListener("click", (e) => {
+    if (e.target === adminModal) {
+        adminModal.classList.add("hidden");
     }
 });
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+addCarForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const saveBtn = document.getElementById("saveCarBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "⏳ Qo'shilmoqda...";
+
+    const name = document.getElementById("carName").value.trim();
+    let price = document.getElementById("carPrice").value.trim();
+    if (price && !price.startsWith("$") && !price.toLowerCase().includes("so'm")) {
+        price = "$" + price;
+    }
+    const category = document.getElementById("carCategory").value;
+    const tag = document.getElementById("carTag").value.trim() || "Yangi";
+    const year = document.getElementById("carYear").value.trim() || "2025";
+    const km = document.getElementById("carKm").value.trim() || "0 km";
+    const fuel = document.getElementById("carFuel").value.trim() || "Benzin";
+    const gear = document.getElementById("carGear").value || "Avtomat";
+
+    const fileInput = document.getElementById("carImgFile");
+    const urlInput = document.getElementById("carImgUrl").value.trim();
+
+    let imgData = urlInput || "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80";
+    if (fileInput.files && fileInput.files[0]) {
+        try {
+            imgData = await readFileAsDataUrl(fileInput.files[0]);
+        } catch (_) {}
+    }
+
+    const newCar = {
+        id: Date.now(),
+        name,
+        price,
+        category,
+        tag,
+        year,
+        km,
+        fuel,
+        gear,
+        img: imgData
+    };
+
+    // 1. Lokal xotiraga darhol saqlaymiz
+    const customList = getLocalCustomCars();
+    customList.unshift(newCar);
+    localStorage.setItem("autouz_custom_cars", JSON.stringify(customList));
+
+    // 2. Backend (Neon DB + Telegram Bot) ga ham yuboramiz
+    try {
+        await fetchFromBackend("/api/cars/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newCar)
+        });
+    } catch (_) {
+        sendTelegramDirectMessage(
+            `🚗 <b>ADMIN YANGI MASHINA QO'SHDI!</b>\n\n` +
+            `🚘 <b>Model:</b> ${newCar.name}\n` +
+            `💰 <b>Narxi:</b> ${newCar.price}\n` +
+            `📅 <b>Yili:</b> ${newCar.year} | ${newCar.fuel}`
+        );
+    }
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = "➕ Mashinani katalogga qo'shish";
+
+    addCarForm.reset();
+    adminModal.classList.add("hidden");
+    renderCars();
+    showToast(`✅ "${name}" katalogga muvaffaqiyatli qo'shildi!`);
+});
+
+window.handleDeleteCar = async function (carId) {
+    if (!isAdminUser()) return;
+    if (!confirm("Haqiqatan ham ushbu mashinani katalogdan o'chirmoqchimisiz?")) return;
+
+    // Lokal ro'yxatdan o'chiramiz
+    const customList = getLocalCustomCars().filter(c => String(c.id) !== String(carId));
+    localStorage.setItem("autouz_custom_cars", JSON.stringify(customList));
+
+    const deletedIds = getDeletedCarIds();
+    deletedIds.push(String(carId));
+    localStorage.setItem("autouz_deleted_cars", JSON.stringify(deletedIds));
+
+    try {
+        await fetchFromBackend("/api/cars/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: carId })
+        });
+    } catch (_) {}
+
+    renderCars();
+    showToast("🗑️ Mashina katalogdan o'chirildi.");
+};
 
 // ==========================================
 // 5. MASHINA BUYURTMA QILISH
@@ -393,15 +574,15 @@ window.handleBuyCar = async function (carId) {
     const user = getSavedUser();
     if (!user) {
         showToast("⚠️ Xarid qilish uchun avval ro'yxatdan o'ting!");
-        updateAuthUI(null);
+        updateAuthUI();
         return;
     }
 
-    const car = CARS.find(c => c.id === carId);
+    const car = getAllCars().find(c => String(c.id) === String(carId));
     if (!car) return;
 
     try {
-        const res = await fetch(`${API_BASE}/api/order`, {
+        const res = await fetchFromBackend("/api/order", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -410,16 +591,20 @@ window.handleBuyCar = async function (carId) {
                 car_price: car.price
             })
         });
-        if (!res.ok) {
-            localStorage.removeItem("autouz_user");
-            updateAuthUI(null);
-            showToast("⚠️ Sessiyangiz muddati tugagan. Qayta kiring.");
+        if (res.ok) {
+            showToast(`✅ "${car.name}" uchun arizangiz Telegram botga yuborildi!`);
             return;
         }
-        showToast(`✅ "${car.name}" uchun arizangiz Telegram botga yuborildi!`);
-    } catch (_) {
-        showToast("⚠️ Server bilan aloqa yo'q!");
-    }
+    } catch (_) {}
+
+    sendTelegramDirectMessage(
+        `🚘 <b>YANGI MASHINA BUYURTMASI!</b>\n\n` +
+        `🚗 <b>Model:</b> ${car.name}\n` +
+        `💰 <b>Narxi:</b> ${car.price}\n` +
+        `👤 <b>Xaridor:</b> ${user.name}\n` +
+        `📞 <b>Telefon:</b> ${user.phone}`
+    );
+    showToast(`✅ "${car.name}" uchun arizangiz Telegram botga yuborildi!`);
 };
 
 function showToast(msg) {
@@ -432,5 +617,5 @@ function showToast(msg) {
 
 // Dastlabki ishga tushirish
 renderCars();
-initBotInfo();
-verifySessionWithBackend();
+updateAuthUI();
+loadCarsFromServer();

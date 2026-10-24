@@ -17,73 +17,28 @@
                 <span class="logo-icon">🚘</span> AUTO<span>UZ</span>
             </div>
 
-            <!-- 1-QADAM: MA'LUMOT KIRITISH -->
-            <div id="step1Form">
-                <div class="modal-header">
-                    <h3>Saytga kirish uchun ro'yxatdan o'ting</h3>
-                    <p>Saytdan foydalanish uchun Telegram bot orqali tasdiqlash kodi oling</p>
-                </div>
-
-                <div class="bot-notice">
-                    <div class="bot-notice-text">
-                        <strong>⚠️ 1-qadam:</strong> Kod kelishi uchun avval Telegram botimizga kirib <code>/start</code> tugmasini bosing!
-                    </div>
-                    <a id="botLinkBtn" href="https://t.me/" target="_blank" class="btn btn-telegram btn-sm">
-                        ✈️ Botga kirish (/start)
-                    </a>
-                </div>
-
-                <form id="sendCodeForm">
-                    <div class="form-group">
-                        <label for="regName">Ism va familiyangiz *</label>
-                        <input type="text" id="regName" placeholder="" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="regPhone">Telefon raqamingiz *</label>
-                        <input type="tel" id="regPhone" placeholder="" value="" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="regTelegramId">
-                            Telegram ID <span class="optional-tag">(botda /start bossangiz shart emas)</span>
-                        </label>
-                        <input type="text" id="regTelegramId" placeholder="">
-                    </div>
-
-                    <div id="step1Error" class="alert alert-error hidden"></div>
-
-                    <button type="submit" id="sendCodeBtn" class="btn btn-primary btn-block">
-                        🔑 Telegram botga kod yuborish
-                    </button>
-                </form>
+            <div class="modal-header">
+                <h3>Ro'yxatdan o'tish</h3>
+                <p>Saytga kirish uchun ismingiz va telefon raqamingizni kiriting</p>
             </div>
 
-            <!-- 2-QADAM: TELEGRAMDAN KELGAN KODNI KIRITISH -->
-            <div id="step2Form" class="hidden">
-                <div class="modal-header">
-                    <div class="modal-icon">🔐</div>
-                    <h3>Tasdiqlash kodini kiriting</h3>
-                    <p>Telegram botga yuborilgan <strong>6 xonali</strong> kodni kiriting</p>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="regName">Ismingiz *</label>
+                    <input type="text" id="regName" placeholder="Masalan: Husniddin" required>
                 </div>
 
-                <form id="verifyCodeForm">
-                    <div class="otp-inputs">
-                        <input type="text" maxlength="6" id="otpCodeInput" class="otp-single-input" placeholder="• • • • • •" autocomplete="one-time-code" required>
-                    </div>
+                <div class="form-group">
+                    <label for="regPhone">Telefon raqamingiz *</label>
+                    <input type="tel" id="regPhone" placeholder="+998 90 123 45 67" value="+998 " required>
+                </div>
 
-                    <div id="step2Error" class="alert alert-error hidden"></div>
-                    <div id="step2Success" class="alert alert-success hidden"></div>
+                <div id="regError" class="alert alert-error hidden"></div>
 
-                    <button type="submit" id="verifyCodeBtn" class="btn btn-primary btn-block">
-                        ✅ Tasdiqlash va Saytga kirish
-                    </button>
-
-                    <button type="button" id="backToStep1Btn" class="btn btn-link btn-block">
-                        ⬅️ Orqaga qaytish / Qayta kod olish
-                    </button>
-                </form>
-            </div>
+                <button type="submit" id="registerBtn" class="btn btn-primary btn-block">
+                    ✅ Ro'yxatdan o'tish va Kirish
+                </button>
+            </form>
         </div>
     </div>
 
@@ -106,8 +61,15 @@
                 </nav>
 
                 <div class="nav-actions">
+                    <button id="openAdminBtn" class="btn btn-admin btn-sm">
+                        👑 Admin Panel (➕ Mashina qo'shish)
+                    </button>
+
                     <div id="userProfile" class="user-profile">
-                        <span class="user-badge">👤 <strong id="navUserName">Foydalanuvchi</strong></span>
+                        <span class="user-badge">
+                            👤 <strong id="navUserName">Foydalanuvchi</strong>
+                            <span id="adminRoleBadge" class="admin-role-tag hidden">👑 ADMIN</span>
+                        </span>
                         <button id="logoutBtn" class="btn btn-danger-outline btn-sm">🚪 Chiqish</button>
                     </div>
                 </div>
@@ -126,7 +88,7 @@
                     </p>
                     <div class="hero-buttons">
                         <a href="#catalog" class="btn btn-primary btn-lg">🚗 Mashinalarni ko'rish</a>
-                        <a href="#features" class="btn btn-glass btn-lg">🛡️ Bizning afzalliklar</a>
+                        <button id="heroAdminBtn" class="btn btn-glass btn-lg">➕ Yangi mashina qo'shish</button>
                     </div>
 
                     <div class="hero-stats">
@@ -194,7 +156,7 @@
                     <div class="feature-card">
                         <div class="feature-icon">🤖</div>
                         <h3>Telegram Bot Integratsiyasi</h3>
-                        <p>Ro'yxatdan o'tish kodlari va xarid arizalari to'g'ridan-to'g'ri rasmiy Telegram botimizga boradi.</p>
+                        <p>Ro'yxatdan o'tgan foydalanuvchilar va xarid arizalari to'g'ridan-to'g'ri rasmiy Telegram botimizga boradi.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">🛡️</div>
@@ -223,6 +185,87 @@
                 </div>
             </div>
         </footer>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- 3. ADMIN PANEL MODAL OYNASI (MASHINA QO'SHISH)        -->
+    <!-- ===================================================== -->
+    <div id="adminModal" class="modal-overlay hidden">
+        <div class="modal-card admin-modal-card">
+            <button id="closeAdminModalBtn" class="modal-close">&times;</button>
+
+            <div class="modal-header">
+                <div class="modal-icon">👑</div>
+                <h3>Admin Panel — Mashina qo'shish</h3>
+                <p>Yangi avtomobil ma'lumotlarini kiriting va katalogga joylang</p>
+            </div>
+
+            <form id="addCarForm">
+                <div class="admin-form-grid">
+                    <div class="form-group">
+                        <label for="carName">Mashina modeli va nomi *</label>
+                        <input type="text" id="carName" placeholder="Masalan: Chevrolet Onix Premier" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carPrice">Narxi *</label>
+                        <input type="text" id="carPrice" placeholder="Masalan: $16,500" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carCategory">Kategoriya *</label>
+                        <select id="carCategory">
+                            <option value="chevrolet">Chevrolet</option>
+                            <option value="electro">Elektromobil / Gibrid</option>
+                            <option value="premium">Premium</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carTag">Yorliq (Teg)</label>
+                        <input type="text" id="carTag" placeholder="Masalan: Yangi, Bestseller, VIP" value="Yangi">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carYear">Ishlab chiqarilgan yili</label>
+                        <input type="text" id="carYear" placeholder="2025" value="2025">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carKm">Yurgan masofasi</label>
+                        <input type="text" id="carKm" placeholder="0 km" value="0 km">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carFuel">Motor / Yoqilg'i turi</label>
+                        <input type="text" id="carFuel" placeholder="Masalan: 1.2L Turbo Benzin" value="1.5L Benzin">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="carGear">Uzatmalar qutisi</label>
+                        <select id="carGear">
+                            <option value="Avtomat">Avtomat</option>
+                            <option value="Mexanika">Mexanika</option>
+                            <option value="Avtomat 4WD">Avtomat 4WD</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="carImgFile">📸 Kompyuterdan/telefondan rasm tanlash (ixtiyoriy)</label>
+                    <input type="file" id="carImgFile" accept="image/*">
+                </div>
+
+                <div class="form-group">
+                    <label for="carImgUrl">🔗 Yoki Rasm URL manzili (ssilka)</label>
+                    <input type="text" id="carImgUrl" placeholder="https://... (bo'sh qolsa avtomatik chiroyli rasm qo'yiladi)">
+                </div>
+
+                <button type="submit" id="saveCarBtn" class="btn btn-primary btn-block">
+                    ➕ Mashinani katalogga qo'shish
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- TOAST NOTIFICATION -->
