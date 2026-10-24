@@ -305,17 +305,21 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
 
 
 def run_web_server():
-    # Render va lokal kompyuterda ham ishlashi uchun 0.0.0.0 portiga ulaymiz
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), MashinaRequestHandler)
-    print(f"🌐 Backend va Sayt orqa fonda (background) ishga tushdi: http://127.0.0.1:{PORT}")
+    port = int(os.environ.get("PORT", PORT))
+    server = ThreadingHTTPServer(("0.0.0.0", port), MashinaRequestHandler)
+    print(f"🌐 Backend va Sayt 0.0.0.0:{port} portda ishga tushdi!", flush=True)
     server.serve_forever()
 
 
 if __name__ == "__main__":
-    print("🔄 Neon PostgreSQL bazasi tekshirilmoqda...")
+    # 1. Eng avval Web-serverni (0.0.0.0:$PORT) darhol ishga tushiramiz (Render portni tez ko'rishi uchun)
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
+
+    # 2. Keyin Neon PostgreSQL bazasini tekshiramiz
+    print("🔄 Neon PostgreSQL bazasi tekshirilmoqda...", flush=True)
     init_db()
 
-    # Agar avval webhook yoqilgan bo'lsa, polling ishlashi uchun o'chirib qo'yamiz
     try:
         bot.remove_webhook()
     except Exception:
@@ -325,16 +329,9 @@ if __name__ == "__main__":
         me = bot.get_me()
         bot_info_cache["username"] = me.username or ""
         bot_info_cache["first_name"] = me.first_name or "Mashina Bot"
-        print(f"🤖 Telegram Bot ulandi: @{bot_info_cache['username']} ({bot_info_cache['first_name']})")
+        print(f"🤖 Telegram Bot ulandi: @{bot_info_cache['username']} ({bot_info_cache['first_name']})", flush=True)
     except Exception as e:
-        print(f"⚠️ Bot ma'lumotlarini olishda xatolik: {e}")
+        print(f"⚠️ Bot ma'lumotlarini olishda xatolik: {e}", flush=True)
 
-    server_thread = threading.Thread(target=run_web_server, daemon=True)
-    server_thread.start()
-
-    # Faqat lokal kompyuterda brauzerni avtomatik ochamiz (Render serverida emas)
-    if not os.environ.get("RENDER"):
-        threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
-
-    print("🚀 Bot va Backend xavfsiz rejimda ishlamoqda... (To'xtatish uchun Ctrl+C bosing)")
+    print("🚀 Bot va Backend xavfsiz rejimda ishlamoqda...", flush=True)
     bot.infinity_polling(skip_pending=True)
