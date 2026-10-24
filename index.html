@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoUz — Zamonaviy Mashinalar Savdosi</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ===================================================== -->
+    <!-- 1. RO'YXATDAN O'TISH SAHIFASI (KIRMAGANLAR UCHUN)     -->
+    <!-- ===================================================== -->
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <span class="logo-icon">🚘</span> AUTO<span>UZ</span>
+            </div>
+
+            <!-- 1-QADAM: MA'LUMOT KIRITISH -->
+            <div id="step1Form">
+                <div class="modal-header">
+                    <h3>Saytga kirish uchun ro'yxatdan o'ting</h3>
+                    <p>Saytdan foydalanish uchun Telegram bot orqali tasdiqlash kodi oling</p>
+                </div>
+
+                <div class="bot-notice">
+                    <div class="bot-notice-text">
+                        <strong>⚠️ 1-qadam:</strong> Kod kelishi uchun avval Telegram botimizga kirib <code>/start</code> tugmasini bosing!
+                    </div>
+                    <a id="botLinkBtn" href="https://t.me/" target="_blank" class="btn btn-telegram btn-sm">
+                        ✈️ Botga kirish (/start)
+                    </a>
+                </div>
+
+                <form id="sendCodeForm">
+                    <div class="form-group">
+                        <label for="regName">Ism va familiyangiz *</label>
+                        <input type="text" id="regName" placeholder="" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="regPhone">Telefon raqamingiz *</label>
+                        <input type="tel" id="regPhone" placeholder="" value="" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="regTelegramId">
+                            Telegram ID <span class="optional-tag">(botda /start bossangiz shart emas)</span>
+                        </label>
+                        <input type="text" id="regTelegramId" placeholder="">
+                    </div>
+
+                    <div id="step1Error" class="alert alert-error hidden"></div>
+
+                    <button type="submit" id="sendCodeBtn" class="btn btn-primary btn-block">
+                        🔑 Telegram botga kod yuborish
+                    </button>
+                </form>
+            </div>
+
+            <!-- 2-QADAM: TELEGRAMDAN KELGAN KODNI KIRITISH -->
+            <div id="step2Form" class="hidden">
+                <div class="modal-header">
+                    <div class="modal-icon">🔐</div>
+                    <h3>Tasdiqlash kodini kiriting</h3>
+                    <p>Telegram botga yuborilgan <strong>6 xonali</strong> kodni kiriting</p>
+                </div>
+
+                <form id="verifyCodeForm">
+                    <div class="otp-inputs">
+                        <input type="text" maxlength="6" id="otpCodeInput" class="otp-single-input" placeholder="• • • • • •" autocomplete="one-time-code" required>
+                    </div>
+
+                    <div id="step2Error" class="alert alert-error hidden"></div>
+                    <div id="step2Success" class="alert alert-success hidden"></div>
+
+                    <button type="submit" id="verifyCodeBtn" class="btn btn-primary btn-block">
+                        ✅ Tasdiqlash va Saytga kirish
+                    </button>
+
+                    <button type="button" id="backToStep1Btn" class="btn btn-link btn-block">
+                        ⬅️ Orqaga qaytish / Qayta kod olish
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- 2. ASOSIY MASHINA SAYTI (FAQAT RO'YXATDAN O'TGANLARGA)-->
+    <!-- ===================================================== -->
+    <div id="mainSite" class="hidden">
+        <!-- NAVBAR -->
+        <header class="navbar">
+            <div class="container nav-content">
+                <a href="#" class="logo">
+                    <span class="logo-icon">🚘</span>
+                    AUTO<span>UZ</span>
+                </a>
+
+                <nav class="nav-links">
+                    <a href="#catalog" class="active">Mashinalar</a>
+                    <a href="#features">Afzalliklar</a>
+                    <a href="#contact">Aloqa</a>
+                </nav>
+
+                <div class="nav-actions">
+                    <div id="userProfile" class="user-profile">
+                        <span class="user-badge">👤 <strong id="navUserName">Foydalanuvchi</strong></span>
+                        <button id="logoutBtn" class="btn btn-danger-outline btn-sm">🚪 Chiqish</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- HERO SECTION -->
+        <section class="hero">
+            <div class="container hero-grid">
+                <div class="hero-text">
+                    <div class="badge-pill">✨ O'zbekistondagi #1 Onlayn Avtosalon</div>
+                    <h1>Orzuingizdagi <span>Avtomobilni</span> Toping va Xarid Qiling</h1>
+                    <p>
+                        Rasmiy kafolat, qulay muddatli to'lov va tezkor rasmiylashtirish.
+                        O'zingizga yoqqan avtomobilni tanlang va 1 tugma orqali buyurtma bering!
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="#catalog" class="btn btn-primary btn-lg">🚗 Mashinalarni ko'rish</a>
+                        <a href="#features" class="btn btn-glass btn-lg">🛡️ Bizning afzalliklar</a>
+                    </div>
+
+                    <div class="hero-stats">
+                        <div class="stat-item">
+                            <h3>150+</h3>
+                            <p>Mavjud avtomobillar</p>
+                        </div>
+                        <div class="stat-item">
+                            <h3>12 soat</h3>
+                            <p>Ichida yetkazib berish</p>
+                        </div>
+                        <div class="stat-item">
+                            <h3>3 yil</h3>
+                            <p>Rasmiy kafolat</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-card">
+                    <div class="featured-badge">🔥 Kun taklifi</div>
+                    <img src="https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=900&q=80" alt="BYD Song Plus" class="hero-car-img">
+                    <div class="hero-car-info">
+                        <div>
+                            <h4>BYD Song Plus DM-i Champion</h4>
+                            <p>2025 yil • Gibrid • Avtomat</p>
+                        </div>
+                        <div class="hero-car-price">$28,500</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FILTER & CATALOG -->
+        <section id="catalog" class="catalog-section">
+            <div class="container">
+                <div class="section-header">
+                    <div>
+                        <h2>Avtomobillar katalogi</h2>
+                        <p>O'zingizga mos mashinani tanlang va onlayn buyurtma bering</p>
+                    </div>
+
+                    <div class="filter-tabs">
+                        <button class="filter-btn active" data-category="all">Barchasi</button>
+                        <button class="filter-btn" data-category="chevrolet">Chevrolet</button>
+                        <button class="filter-btn" data-category="electro">Elektromobil / Gibrid</button>
+                        <button class="filter-btn" data-category="premium">Premium</button>
+                    </div>
+                </div>
+
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="🔎 Mashina nomini yozing (masalan: Malibu, Cobalt, BYD, BMW)...">
+                </div>
+
+                <div id="carsGrid" class="cars-grid">
+                    <!-- JavaScript orqali mashinalar chiqadi -->
+                </div>
+            </div>
+        </section>
+
+        <!-- AFZALLIKLAR -->
+        <section id="features" class="features-section">
+            <div class="container">
+                <h2 class="center-title">Nima uchun <span>AutoUz</span>?</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🤖</div>
+                        <h3>Telegram Bot Integratsiyasi</h3>
+                        <p>Ro'yxatdan o'tish kodlari va xarid arizalari to'g'ridan-to'g'ri rasmiy Telegram botimizga boradi.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h3>100% Tekshirilgan</h3>
+                        <p>Barcha avtomobillar texnik ko'rikdan o'tgan va yuridik jihatdan toza ekanligiga kafolat beriladi.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">💳</div>
+                        <h3>Muddatli To'lov</h3>
+                        <p>Boshlang'ich 20% to'lov bilan 1 yildan 5 yilgacha avtokredit va bo'lib to'lash imkoniyati.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer id="contact" class="footer">
+            <div class="container footer-content">
+                <div>
+                    <a href="#" class="logo">🚘 AUTO<span>UZ</span></a>
+                    <p>Telegram bot bilan integratsiyalashgan avtosalon platformasi.</p>
+                </div>
+                <div class="footer-right">
+                    <p>📞 Call-markaz: +998 (71) 200-00-00</p>
+                    <p>© 2026 AutoUz. Barcha huquqlar himoyalangan.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
