@@ -158,6 +158,11 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+
     def send_json(self, data, status=200):
         response = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -300,7 +305,8 @@ class MashinaRequestHandler(SimpleHTTPRequestHandler):
 
 
 def run_web_server():
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), MashinaRequestHandler)
+    # Render va lokal kompyuterda ham ishlashi uchun 0.0.0.0 portiga ulaymiz
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), MashinaRequestHandler)
     print(f"🌐 Backend va Sayt orqa fonda (background) ishga tushdi: http://127.0.0.1:{PORT}")
     server.serve_forever()
 
@@ -308,6 +314,12 @@ def run_web_server():
 if __name__ == "__main__":
     print("🔄 Neon PostgreSQL bazasi tekshirilmoqda...")
     init_db()
+
+    # Agar avval webhook yoqilgan bo'lsa, polling ishlashi uchun o'chirib qo'yamiz
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
 
     try:
         me = bot.get_me()
@@ -320,7 +332,9 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
+    # Faqat lokal kompyuterda brauzerni avtomatik ochamiz (Render serverida emas)
+    if not os.environ.get("RENDER"):
+        threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
 
     print("🚀 Bot va Backend xavfsiz rejimda ishlamoqda... (To'xtatish uchun Ctrl+C bosing)")
-    bot.infinity_polling()
+    bot.infinity_polling(skip_pending=True)
